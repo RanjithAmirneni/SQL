@@ -120,14 +120,14 @@ WHERE category_id IN (SELECT
 /*
 3. subquery is used with ANY & ALL operator:
 --ANY operator: The ANY operator returns true if the comparison holds true for at least one value in the set.
-				Assuming that the subquery returns a list of value v1, v2, … vn. The ANY operator returns TRUE 
+				Assuming that the subquery returns a list of value v1, v2, â€¦ vn. The ANY operator returns TRUE 
 				if one of a comparison pair (scalar_expression, vi) evaluates to TRUE; otherwise, it returns FALSE.
 
 --The ALL operator returns TRUE if all comparison pairs (scalar_expression, vi) evaluate to TRUE; otherwise, it returns FALSE.
 ALL operator:	The ALL operator returns true if the comparison holds true for all values in the set.
 */
 --For each brand, the subquery finds the maximum list price. 
---The outer query uses these max prices and determines which individual product’s list price is greater than or equal to any brand’s maximum list price.
+--The outer query uses these max prices and determines which individual productâ€™s list price is greater than or equal to any brandâ€™s maximum list price.
 
 select * from production.products
 SELECT  product_name, list_price FROM  production.products WHERE  list_price >= ANY (SELECT
@@ -244,15 +244,33 @@ Note: We prefer to use common table expressions rather than to use subqueries be
 We also use CTE in the queries that contain analytic functions (or window functions)
 
 */
+---------------------------------------------------------------------------------------------------------------------------
 select * from dbo.emp2
 
-with cte (emp_id, emp_name, department_id)as 
+--lets say i want to find the employess whose salary is greater than the average salary of company
+--first we will see using the subquery and then we can see it using the CTE
 
-(select emp_id, emp_name, department_id from dbo.emp2 where gender = 'Male')  
+select * from dbo.emp2 where salary > (select avg(salary) from dbo.emp2)
+
+
+with emp_avg_greater as (
+						select avg(salary) as avg_sal from dbo.emp2)
+select * from dbo.emp2 
+
+inner join emp_avg_greater 
+on salary > avg_sal;
+
+-----------------------------------------------------------------------------------------------------------------------------
+select * from dbo.emp2
+
+with malecte as (select * from dbo.emp2 where gender = 'Male'),
+	 excludedep100 as (select * from dbo.emp2 where department_id not in (100)),
+	 sal_great_10000 as (select * from dbo.emp2 where salary > 10000)
  
-SELECT emp_id, emp_name, department_id FROM cte 
-
--------------------------------------------------------------------------------------------------------------
+select * from malecte
+--inner join malecte on  dbo.emp2.emp_id = emp_id
+--inner join  sal_great_10000 c on   b.emp_id = c.emp_id
+-----------------------------------------------------------------------------------------------------------------------------
 --we will find the department wise average salary using the cte now
 
 with cte1 as (select dept_id, avg(salary) as avg_department_salary from employee group by dept_id)
@@ -268,16 +286,20 @@ on e.dept_id = d.dept_id
 -- we can also write nested cte's also:
 
 with cte1 as (select dept_id, avg(salary) as avg_department_salary from employee group by dept_id),
- total_slary as (select sum(avg_department_salary) as total_salary from cte1)
+ total_slary as (select dept_id, sum(salary) as total_salary from employee group by dept_id),
+ sal_greater_than6000 as (select dept_id, avg_department_salary from cte1 where  avg_department_salary>6000)
 
-select e.*, d.*  from 
+select e.*, d.* , t.*, p.* from 
 employee e
 inner join
 cte1 d
 on e.dept_id = d.dept_id
+inner join total_slary t on  d.dept_id = t.dept_id 
+inner join sal_greater_than6000 p on t.dept_id  = p.dept_id
+
 --------------------------------------------------------------------------------------------------------------------------
 
---This CTE return the sales amounts by sales staffs in 2018:
+--This CTE return the sales amounts by sales staffs in 2018: By using join clauses in CTE expression
 WITH cte_sales_amounts (staff, sales, year) AS (
 												SELECT    
 													first_name + ' ' + last_name as staff_fullname, 
@@ -293,7 +315,129 @@ WITH cte_sales_amounts (staff, sales, year) AS (
 
 SELECT staff, sales FROM cte_sales_amounts WHERE year = 2018;
 
+select * from sales.orders
+select * from sales.order_items
+select * from sales.staffs
+
+
+----------------------------------------------------------------------------------------------------------------------------
+--using case statement inside CTE and using self join as well.
+
+select * from dbo.emp2
+select * from  department
+WITH cte AS (SELECT e.emp_id, e.emp_name,e.emp_age,e.gender,d.emp_name as manager_name,
+							CASE 
+								WHEN e.emp_age < 18 THEN 'JuniorConsultant'
+								WHEN e.emp_age >= 18 AND e.emp_age < 40 THEN 'SeniorConsultant'
+								WHEN e.emp_age IS NULL THEN 'Unknown'
+								ELSE 'ManagingConsultant'
+						    END AS emp_category
+							  FROM	dbo.emp2 e
+							  INNER JOIN dbo.emp2 d 
+							  on e.manager_id = d.emp_id)
+
+SELECT  * FROM  cte where gender = 'Female';
 -------------------------------------------------------------------------------------------------------------------------------
+/*
 
---With CTE i can reduce the number of times i write a repeated query:
+Recursive CTE's:
+A recursive CTE is nothing but a CTE running in a LOOP.Meaning CTE will call itself and it will run till the break point.
+*/
 
+
+with CTE_numbers as (
+
+					select 1 as num --anchor query
+
+					UNION ALL
+
+					select num +1 from CTE_numbers where num <6 --recursive query
+
+					)
+
+select num from CTE_numbers
+
+--lets understand whats happening inside a recursive CTE
+
+/*
+anchor :1 
+num =1 UNION ALL 2 
+
+--next it will go to union all second query and we know that execution starts from where so it check if num <6 True so its select num+1
+so num =2 now 
+
+num =2 UNION ALL 3
+
+num =3 UNION ALL 4
+
+num =4 UNION ALL 5
+
+
+num =6 UNION ALL FALSE so it won't union all
+----------------------------------------------------------------------------------------------------
+*/
+--Lets solve a realtime problem to understand the Recursive CTE better:
+
+create table sales (
+product_id int,
+period_start date,
+period_end date,
+average_daily_sales int
+);
+
+insert into sales values(1,'2019-01-25','2019-02-28',100),(2,'2018-12-01','2020-01-01',10),(3,'2019-12-01','2020-01-31',1);
+
+--Now i want to find total sales by year
+select * from sales;
+
+with r_cte as (
+
+select min(period_start) as dates, max(period_end)as max_date from sales 
+
+union all 
+
+select dateadd(day, 1,dates) as dates, max_date from r_cte --I don't need max_date here but in union all no of columns should same thats why i am taking it 
+ where dates < max_date
+)
+
+--select * from r_cte
+select product_id, year(dates) as report_year , sum(average_daily_sales) as total_amount from r_cte
+inner join sales on  dates between period_start and period_end
+group by product_id, year(dates)
+order by product_id , year(dates)
+option (maxrecursion 1000);
+
+
+-- IMP NOTE: This recursive CTE you can use for generating dummy data for a certain time period.
+--Like here in this above scenario we have to generate multiple days to explode our rows into multiple rows 
+------------------------------------------------------------------------------------------------------------------------------
+/*
+
+IMPORTANT POINTS TO NOTE REGARDING CTE:
+
+--With CTE i can reduce the number of times i write a repeated query, 
+	just i can refer the expression that i defined that is why its called as CTE common table expression.
+	And CTE it looks more structured comapared to subquery.
+  as it id  executed  will be executed from top to bottom where as in sub query its difficult to debug or trouble shoot the issues like which subquery is failing and all.
+
+					SUB QUERY: Query3(Query2(Query1()))
+
+						  CTE:	QUERY1
+								QUERY2
+								QUERY3
+
+			so CTE is more structured compared to subquery (interpretability/readability is good for CTE)
+
+
+--A CTE must be followed by a single SELECT, INSERT, UPDATE, or DELETE statement that references some or all the CTE columns.
+Multiple CTE query definitions can be defined in a non recursive CTE.
+
+--A CTE can reference itself and previously defined CTEs in the same WITH clause We can use only one With Clause in a CTE
+
+--CTEs can be used  to create a recursive query and can be used to reference itself multiple times to generate data. 
+
+--CTEs can be used instead of views.Finally CTE's are easy and simple for readability and code maintainability.
+
+*/
+
+-----------------------------------------------------------------------------------------------------------------------
