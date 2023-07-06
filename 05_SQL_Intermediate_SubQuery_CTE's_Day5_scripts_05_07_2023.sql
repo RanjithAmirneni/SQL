@@ -1,10 +1,21 @@
 /*
-SUB QUERY:
+SUB QUERYS:
 A subquery is a query nested inside another statement such as SELECT, INSERT, UPDATE, or DELETE.
+In sql we can use sub query in many places
+								--1. In place of an expression
+								--2. With IN or NOT IN
+								--3. With ANY or ALL
+								--4. With EXISTS or NOT EXISTS
+								--5. In UPDATE, DELETE, orINSERT statement
+								--6. In the FROM clause
+
+It is mainly used to store the intermediate results of the query and perform more operations on the intermediate
+results.
+
 */
 --------------------------------------------------------------------------------------------------------------------------------
---sub query inside where
 
+--lets query the dbo.orders table
 select * from dbo.orders
 --1. find avg order value
 select avg(sales) from dbo.orders--210
@@ -26,7 +37,7 @@ select * from dbo.orders where order_id = 'CA-2018-104563'
 ------------------------------------------------------------------------------------------------------------------------
 select *  from employee
 select * from dept 
-
+----sub query inside where
 --Now we have an employee whose dept is not present in the department table like 500
 --earlier we used left join to find it
 
@@ -39,6 +50,7 @@ select * from employee where dept_id not in (select dep_id from dept)
 select * from employee where dept_id > (select dep_id from dept)-- This doesn't work
 select * from employee where dept_id > (select max(dep_id) from dept)-- This will work
 
+--sub query inside select 
 select *, (select avg(salary) from employee) avg_sal from employee --we can also use sub query inside select
  where dept_id not in (select dep_id from dept)
 
@@ -80,17 +92,7 @@ WHERE list_price > (SELECT AVG (list_price) FROM production.products WHERE brand
 																						OR brand_name = 'Trek'))
 																						ORDER BY
 																							list_price;
---------------------------------------------------------------------------------------------------------------------------------
-/*In sql we can use sub query in many places
-								--1. In place of an expression
-								--2. With IN or NOT IN
-								--3. With ANY or ALL
-								--4. With EXISTS or NOT EXISTS
-								--5. In UPDATE, DELETE, orINSERT statement
-								--6. In the FROM clause
 
-
-*/ 
 ------------------------------------------------------------------------------------------------------------------------------
 
 /*1. subquery usage in place of an expression:
@@ -266,9 +268,9 @@ on e.dept_id = d.dept_id
 -- we can also write nested cte's also:
 
 with cte1 as (select dept_id, avg(salary) as avg_department_salary from employee group by dept_id),
-total_slary as (select sum(avg_department_salary) as total_salary from cte1)
+ total_slary as (select sum(avg_department_salary) as total_salary from cte1)
 
-select e.*, d.* from 
+select e.*, d.*  from 
 employee e
 inner join
 cte1 d
@@ -292,3 +294,6 @@ WITH cte_sales_amounts (staff, sales, year) AS (
 SELECT staff, sales FROM cte_sales_amounts WHERE year = 2018;
 
 -------------------------------------------------------------------------------------------------------------------------------
+
+--With CTE i can reduce the number of times i write a repeated query:
+
